@@ -1,0 +1,12 @@
+import os
+from .modules.textbatch import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+
+# 獲取當前目錄路徑
+EXTENSION_FOLDER = os.path.dirname(os.path.realpath(__file__))
+
+# 定義 Web UI 相關設定
+WEB_DIRECTORY = os.path.join(EXTENSION_FOLDER, "js")
+NODE_CLASS_MAPPINGS = NODE_CLASS_MAPPINGS
+NODE_DISPLAY_NAME_MAPPINGS = NODE_DISPLAY_NAME_MAPPINGS
+
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
