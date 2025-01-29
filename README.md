@@ -6,3 +6,15 @@
 
 安裝方式在ComfyUI\custom_nodes 將此專案git clone下來
 
+Together AI支持的模型都可以使用，像是
+DeepSeek R1
+DeepSeek V3
+Meta Llama 3.3 70B Instruct Turbo
+Meta Llama 3.1 405B Instruct Turbo
+
+完整清單
+https://api.together.xyz/models
+
+comfyui-deepseek-r1-llm-together測試文
+https://blog.aidec.tw/post/comfyui-deepseek-r1-llm-together
+
