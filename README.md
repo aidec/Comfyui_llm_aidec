@@ -18,3 +18,6 @@ https://api.together.xyz/models
 comfyui-deepseek-r1-llm-together測試文
 https://blog.aidec.tw/post/comfyui-deepseek-r1-llm-together
 
+增加Qwen2.5-VL、Qwen2.5-Instruct 兩個節點
+可以用來簡單LLM詢問
+跟輸入圖片進行反推圖片描述
