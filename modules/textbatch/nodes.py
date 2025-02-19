@@ -628,12 +628,186 @@ class QwenVLNode:
             logger.error(f"Qwen VL 模型錯誤: {str(e)}")
             return ("", f"錯誤: {str(e)}")
 
+class GeminiNode:
+    """
+    Google Gemini API 節點
+    用於調用 Google Gemini 的語言模型 API，支援多模態輸入
+    """
+    def __init__(self):
+        self.client = None
+        self.model_loaded = False
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "enable": ("BOOLEAN", {
+                    "default": True,
+                    "label_on": "Enabled",
+                    "label_off": "Disabled"
+                }),
+                "api_key": ("STRING", {
+                    "multiline": False,
+                    "default": "",
+                    "placeholder": "輸入你的 Google API Key"
+                }),
+                "model": ([
+                    "gemini-2.0-flash",
+                    "gemini-2.0-flash-lite-preview-02-05",
+                    "gemini-2.0-pro-exp-02-05",
+                    "gemini-2.0-flash-thinking-exp-01-21",
+                    "gemini-2.0-flash-exp",
+                    "gemini-1.5-flash"
+                ], {
+                    "default": "gemini-2.0-flash"
+                }),
+                "enable_search": ("BOOLEAN", {
+                    "default": False,
+                    "label_on": "Search Enabled",
+                    "label_off": "Search Disabled"
+                }),
+                "system_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "You are a helpful assistant.",
+                    "placeholder": "輸入系統提示詞"
+                }),
+                "prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "輸入用戶提示詞"
+                }),
+                "max_tokens": ("INT", {
+                    "default": 2048,
+                    "min": 1,
+                    "max": 8192,
+                    "step": 1
+                }),
+                "temperature": ("FLOAT", {
+                    "default": 0.7,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.1
+                }),
+            },
+            "optional": {
+                "image": ("IMAGE",),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING",)
+    RETURN_NAMES = ("response_text", "filtered_text", "think_content", "status")
+    FUNCTION = "generate"
+    CATEGORY = "TextBatch"
+
+    def tensor_to_pil(self, image_tensor):
+        """將 tensor 轉換為 PIL 圖像"""
+        from PIL import Image
+        import numpy as np
+
+        # 處理 BCHW 格式
+        if len(image_tensor.shape) == 4:
+            if image_tensor.shape[0] == 1:
+                image_tensor = image_tensor.squeeze(0)
+        
+        # 轉換為 numpy 數組並確保值範圍在 [0,1]
+        image = (torch.clamp(image_tensor, 0, 1) * 255).cpu().numpy().astype(np.uint8)
+        
+        # 轉換為 PIL 圖像
+        pil_image = Image.fromarray(image, mode='RGB')
+        return pil_image
+
+    def filter_think_content(self, text):
+        """過濾掉文本中的 think 標籤及其內容"""
+        import re
+        filtered_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        filtered_text = re.sub(r'\n\s*\n', '\n', filtered_text)
+        return filtered_text.strip()
+
+    def extract_think_content(self, text):
+        """提取文本中的 think 標籤內容"""
+        import re
+        think_contents = re.findall(r'<think>(.*?)</think>', text, flags=re.DOTALL)
+        return '\n'.join(think_contents).strip()
+
+    def generate(self, enable, api_key, model, enable_search, system_prompt, prompt, max_tokens, temperature, image=None):
+        try:
+            if not enable:
+                return ("", "", "", "節點已禁用")
+
+            # 初始化 Google GenAI 客戶端
+            from google import genai
+            from google.genai import types
+            
+            if not self.model_loaded:
+                self.client = genai.Client(api_key=api_key)
+                self.model_loaded = True
+
+            # 設置生成配置
+            generation_config = types.GenerateContentConfig(
+                temperature=temperature,
+                top_p=0.95,
+                top_k=64,
+                max_output_tokens=max_tokens,
+            )
+
+            # 如果啟用搜尋，添加搜尋工具
+            if enable_search:
+                if "2.0" in model:
+                    generation_config.tools = [
+                        types.Tool(
+                            google_search=types.GoogleSearch()
+                        )
+                    ]
+                else:
+                    generation_config.tools = ['google_search_retrieval']
+
+            # 準備內容
+            contents = []
+            
+            # 添加系統提示詞
+            if system_prompt:
+                contents.append(system_prompt)
+            
+            # 如果有圖像輸入
+            if image is not None:
+                # 轉換為 PIL 圖像
+                pil_image = self.tensor_to_pil(image)
+                contents.extend([
+                    pil_image,  # Gemini SDK 會自動處理 PIL 圖像
+                    prompt
+                ])
+            else:
+                contents.append(prompt)
+
+            # 生成回應
+            response = self.client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=generation_config
+            )
+            
+            # 提取生成的文本
+            generated_text = response.text
+            
+            # 過濾後的文本
+            filtered_text = self.filter_think_content(generated_text)
+            
+            # 提取 think 內容
+            think_content = self.extract_think_content(generated_text)
+            
+            return (generated_text, filtered_text, think_content, "生成成功")
+
+        except Exception as e:
+            logger.error(f"Gemini API 調用錯誤: {str(e)}")
+            return ("", "", "", f"錯誤: {str(e)}")
+
 # 更新節點類映射
 NODE_CLASS_MAPPINGS = {
     "TogetherAI": TogetherAINode,
     "ThinkR1TextSplitter": ThinkR1TextSplitter,
     "QwenLocal": QwenLocalNode,
-    "QwenVL": QwenVLNode
+    "QwenVL": QwenVLNode,
+    "Gemini": GeminiNode
 }
 
 # 更新節點顯示名稱映射
@@ -641,5 +815,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "TogetherAI": "Together AI",
     "ThinkR1TextSplitter": "Think R1 Text Splitter",
     "QwenLocal": "Qwen Local",
-    "QwenVL": "Qwen VL"
+    "QwenVL": "Qwen VL",
+    "Gemini": "Google Gemini"
 }

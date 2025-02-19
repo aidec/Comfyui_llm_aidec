@@ -1,3 +1,4 @@
 openai>=1.57.4
 transformers>=4.37.0
 qwen-vl-utils
+google-genai>=1.0.0
